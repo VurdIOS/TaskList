@@ -10,10 +10,12 @@ import CoreData
 
 class TaskListViewController: UITableViewController {
     
+    let taskData = DataStore.shared
+    
     private let cellID = "task"
     private var taskList: [Task] = []
     
-    private let viewContext = (UIApplication.shared.delegate as! AppDelegate).persistentContainer.viewContext
+    private let viewContext = DataStore.shared.persistentContainer.viewContext
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -21,10 +23,13 @@ class TaskListViewController: UITableViewController {
         tableView.register(UITableViewCell.self, forCellReuseIdentifier: cellID)
         setupNavigationBar()
         fetchData()
+        
     }
     
     private func addNewTask() {
-        showAlert(withTitle: "New Task", andMessage: "What do you want to do?")
+        showAlert(withTitle: "New Task", andMessage: "What do you want to do?") { [self] result in
+            self.save(result)
+        }
     }
     
     private func fetchData() {
@@ -37,17 +42,18 @@ class TaskListViewController: UITableViewController {
         }
     }
     
-    private func showAlert(withTitle title: String, andMessage message: String) {
+    private func showAlert(withTitle title: String, andMessage message: String, complition: @escaping(String) -> Void) {
         let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
-        let saveAction = UIAlertAction(title: "Save Task", style: .default) { [weak self] _ in
+        
+        let saveAction = UIAlertAction(title: "Save Task", style: .default) { _ in
             guard let task = alert.textFields?.first?.text, !task.isEmpty else { return }
-            self?.save(task)
+            complition(task)
         }
         let cancelAction = UIAlertAction(title: "Cancel", style: .destructive)
         alert.addAction(saveAction)
         alert.addAction(cancelAction)
         alert.addTextField { textField in
-            textField.placeholder = "New Task"
+            textField.placeholder = "Write here..."
         }
         present(alert, animated: true)
     }
@@ -67,6 +73,15 @@ class TaskListViewController: UITableViewController {
                 print(error)
             }
         }
+    }
+    private func edit(task: Task, taskName: String) {
+        task.title = taskName
+        taskData.saveContext()
+    }
+    
+    func delete(task: Task) {
+        viewContext.delete(task)
+        taskData.saveContext()
     }
 }
 
@@ -109,4 +124,21 @@ extension TaskListViewController {
         cell.contentConfiguration = content
         return cell
     }
+    override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+        let task = taskList[indexPath.row]
+        showAlert(withTitle: "Change Task", andMessage: "Please write changes") { [self] newTask in
+            self.edit(task: task, taskName: newTask)
+            tableView.reloadData()
+        }
+    }
+    override func tableView(_ tableView: UITableView, commit editingStyle: UITableViewCell.EditingStyle, forRowAt indexPath: IndexPath) {
+        let task = taskList[indexPath.row]
+        
+        if editingStyle == .delete {
+            taskList.remove(at: indexPath.row)
+            tableView.deleteRows(at: [indexPath], with: .automatic)
+            delete(task: task)
+        }
+    }
+
 }
